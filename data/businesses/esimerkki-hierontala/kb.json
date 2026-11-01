@@ -1,0 +1,18 @@
+{
+  "business": {
+    "id": "esimerkki-hierontala",
+    "nimi": "Esimerkkihierontala (kuvitteellinen demoyritys)",
+    "kuvaus": "Toinen keksitty demoyritys, jolla osoitetaan yrityskohtaiset tiedot.",
+    "palvelut": ["Klassinen hieronta", "Urheiluhieronta", "Jalkahoito"],
+    "aukiolo": { "ma": "", "ti": "12:00-19:00", "ke": "12:00-19:00", "to": "12:00-19:00", "pe": "10:00-16:00", "la": "", "su": "" },
+    "yhteys": { "puhelin": "", "sahkoposti": "" },
+    "demo": true
+  },
+  "entries": [
+    { "id": "kesto", "otsikko": "Hoitojen kestot", "kysymys": "Kuinka kauan hieronta kestää?", "avainsanat": ["kesto", "kauan", "minuuttia", "hieronta"],
+      "teksti": "Klassinen hieronta kestää 30 tai 60 minuuttia. Urheiluhieronta kestää 45 minuuttia. Hinnasto ei ole mukana demossa." },
+    { "id": "valmistautuminen", "otsikko": "Valmistautuminen", "kysymys": "Pitääkö jotain ottaa mukaan?", "avainsanat": ["mukaan", "valmistautua", "pukeutua", "pyyhe"],
+      "teksti": "Mukaan ei tarvitse ottaa mitään. Pyyhkeet ovat hierontalan puolesta. Kerro hierojalle mahdollisista vammoista ennen hoitoa." }
+  ],
+  "handoff": { "ohje": "Demo." }
+}
