@@ -1,0 +1,24 @@
+{
+  "business": {
+    "id": "esimerkki-parturi",
+    "nimi": "Esimerkkiparturi (kuvitteellinen demoyritys)",
+    "kuvaus": "Keksitty demoyritys, jonka tiedot eivät kuvaa mitään oikeaa yritystä.",
+    "palvelut": ["Hiustenleikkaus", "Parranajo", "Lasten leikkaus", "Värjäys"],
+    "aukiolo": { "ma": "09:00-17:00", "ti": "09:00-17:00", "ke": "09:00-17:00", "to": "09:00-17:00", "pe": "09:00-17:00", "la": "10:00-15:00", "su": "" },
+    "yhteys": { "puhelin": "", "sahkoposti": "" },
+    "demo": true
+  },
+  "entries": [
+    { "id": "aukioloajat", "otsikko": "Aukioloajat", "kysymys": "Milloin olette auki?", "avainsanat": ["auki", "aukioloaika", "sulkeutuu", "avataan", "kellonaika", "viikonloppu"],
+      "teksti": "Esimerkkiparturi on auki maanantaista perjantaihin klo 9–17 ja lauantaisin klo 10–15. Sunnuntaisin on suljettu." },
+    { "id": "sijainti", "otsikko": "Sijainti ja pysäköinti", "kysymys": "Missä te sijaitsette?", "avainsanat": ["osoite", "sijainti", "löydän", "pysäköinti", "parkki", "sijaitsee"],
+      "teksti": "Demoyrityksen kuvitteellinen osoite on Esimerkkikatu 1, 00100 Esimerkkikaupunki. Lähellä on asiakaspysäköintiä." },
+    { "id": "hiustenleikkaus", "otsikko": "Hiustenleikkaus", "avainsanat": ["leikkaus", "leikata", "hiukset", "tukka", "kesto"],
+      "teksti": "Hiustenleikkaukseen varataan yleensä noin 45 minuuttia. Hinnasto ei ole mukana tässä demossa, joten hintoja ei voi kertoa." },
+    { "id": "peruutus", "otsikko": "Peruutusehdot", "kysymys": "Voinko peruuttaa ajan?", "avainsanat": ["peruuttaa", "peruutus", "siirtää", "myöhästyä", "poisjäänti"],
+      "teksti": "Ajan voi perua tai siirtää veloituksetta viimeistään edellisenä arkipäivänä. Myöhästymisestä kannattaa ilmoittaa yritykselle puhelimitse." },
+    { "id": "maksutavat", "otsikko": "Maksutavat", "kysymys": "Mitä maksutapoja käytätte?", "avainsanat": ["maksaa", "maksu", "maksutapa", "kortti", "käteinen", "mobilepay"],
+      "teksti": "Demoyrityksessä voi maksaa kortilla tai käteisellä." }
+  ],
+  "handoff": { "ohje": "Demo: yhteydenotot kirjataan ylläpidon saapuneisiin. Oikeaa sähköpostia tai puhelinta ei ole kytketty." }
+}
