@@ -1,0 +1,28 @@
+# Render Blueprint: yksi Node-palvelu + pysyvä levy. Levy rajoittaa palvelun yhteen instanssiin (ei vaakaskaalausta).
+services:
+  - type: web
+    name: vastimo-asiakaspalvelija
+    runtime: node
+    region: frankfurt
+    plan: starter            # pysyvä levy vaatii maksullisen palvelun
+    buildCommand: "true"     # ei riippuvuuksia
+    startCommand: node src/server.js
+    healthCheckPath: /healthz
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: VASTIMO_OPERATOR_TOKEN
+        generateValue: true  # operaattoritunnus; luetaan Renderin ympäristömuuttujista, ei koodista
+      - key: VASTIMO_DATA_DIR
+        value: /var/data/businesses
+      - key: VASTIMO_OUT_DIR
+        value: /var/data/out
+      - key: VASTIMO_AUTH_DIR
+        value: /var/data/auth
+      - key: VASTIMO_TRUST_PROXY_HOPS
+        value: "1"           # tarkistetaan julkaisun jälkeen (x-forwarded-for-ketjun pituus)
+    disk:
+      name: vastimo-data
+      mountPath: /var/data
+      sizeGB: 1
