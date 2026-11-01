@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vastimo – asiakaspalvelija</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font-family:system-ui,sans-serif;background:#eef3fc;color:#0b2a6f;display:flex;justify-content:center}
+main{width:100%;max-width:640px;height:100vh;height:100dvh;display:flex;flex-direction:column;padding:1rem}
+header{display:flex;align-items:center;gap:.75rem}header img{width:48px;height:48px;border-radius:10px}
+h1{font-size:1.15rem;margin:0}#kuv{font-size:.8rem;color:#33498a}
+p.n{margin:.5rem 0;font-size:.8rem;color:#33498a}p.n a{color:#1e5bd8}
+#log{flex:1;background:#fff;border-radius:12px;padding:.75rem;overflow-y:auto;display:flex;flex-direction:column;gap:.5rem;min-height:0}
+.m{max-width:85%;padding:.5rem .75rem;border-radius:12px;white-space:pre-wrap;line-height:1.4;overflow-wrap:anywhere}
+.a{background:#e3ecfd;align-self:flex-start}.u{background:#1e5bd8;color:#fff;align-self:flex-end}
+.chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem}
+.chips button{background:#fff;color:#1e5bd8;border:1px solid #1e5bd8;border-radius:99px;padding:.4rem .8rem;font-size:.85rem}
+form{display:flex;gap:.5rem;margin-top:.6rem}input{flex:1;min-width:0;padding:.7rem;border:1px solid #9bb3e6;border-radius:10px;font:inherit}
+button{background:#1e5bd8;color:#fff;border:0;border-radius:10px;padding:.7rem 1rem;font:inherit;cursor:pointer}
+button:disabled{opacity:.6}
+button:focus-visible,input:focus-visible{outline:3px solid #0b2a6f;outline-offset:2px}
+.embed header,.embed p.n.top{display:none}
+</style></head><body><main>
+<header><img src="logo.png" alt="Vastimon logo"><div><h1 id="nimi">Vastimo</h1><span id="kuv"></span></div></header>
+<p class="n top">Automaattinen avustaja vastaa vain yrityksen antamien tietojen perusteella. Se ei ole ihminen eikä voi varata aikaa: ajanvarauspyynnön vahvistaa aina yritys.</p>
+<div id="log" role="log" aria-live="polite"></div>
+<div class="chips" id="chips"></div>
+<form id="f"><input id="q" autocomplete="off" aria-label="Viesti" placeholder="Kirjoita kysymyksesi…" maxlength="1000"><button id="s">Lähetä</button></form>
+<p class="n">Jos jätät yhteystietoja, ne tallennetaan ja välitetään yritykselle yhteydenottoa varten. <a href="/tietosuoja" target="_blank" rel="noopener">Tietosuoja</a></p>
+<script>
+const P=new URLSearchParams(location.search);
+if(P.get("embed"))document.body.classList.add("embed");
+const log=document.getElementById("log"),$=id=>document.getElementById(id);
+const sid=(()=>{let s=sessionStorage.getItem("vsid");if(!s){s=crypto.randomUUID();sessionStorage.setItem("vsid",s)}return s})();
+const add=(t,c)=>{const d=document.createElement("div");d.className="m "+c;d.textContent=t;log.append(d);log.scrollTop=log.scrollHeight};
+let id=P.get("b");
+async function init(){
+  if(!id){try{const d=await (await fetch("/api/demo")).json();id=d[0]?.id}catch{}}
+  if(!id){add("Yritystä ei ole valittu.","a");$("s").disabled=true;return}
+  const r=await fetch("/api/public/"+encodeURIComponent(id));
+  if(!r.ok){add("Yritystä ei löytynyt.","a");$("s").disabled=true;return}
+  const b=await r.json();$("nimi").textContent=b.nimi;$("kuv").textContent=b.kuvaus||"";document.title=b.nimi+" – asiakaspalvelija";
+  add(`Hei! Olen ${b.nimi} -yrityksen automaattinen avustaja (en ole ihminen). Vastaan yrityksen tietojen perusteella ja voin ottaa vastaan ajanvarauspyynnön.`,"a");
+  const chips=[...b.pikavalinnat,"Haluaisin varata ajan","Haluan puhua ihmisen kanssa"];
+  for(const t of chips){const c=document.createElement("button");c.type="button";c.textContent=t;c.onclick=()=>send(t);$("chips").append(c)}
+}
+async function send(m){
+  add(m,"u");$("s").disabled=true;
+  try{
+    const r=await fetch("/api/chat",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({businessId:id,sessionId:sid,message:m})});
+    const j=await r.json();add(j.reply||j.virhe||"Virhe","a");
+  }catch{add("Yhteys katkesi. Yritä uudelleen.","a")}
+  $("s").disabled=false;$("q").focus();
+}
+$("f").onsubmit=e=>{e.preventDefault();const m=$("q").value.trim();if(!m)return;$("q").value="";send(m)};
+init();
+</script></main></body></html>
