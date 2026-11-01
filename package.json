@@ -1,0 +1,13 @@
+{
+  "name": "vastimo-asiakaspalvelija",
+  "version": "0.3.0",
+  "description": "Vastimo – suomenkielinen tekoälyasiakaspalvelijan julkaisuvalmis versio pienyrityksille",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/server.js",
+    "cli": "node src/cli.js",
+    "test": "node --test"
+  }
+}
