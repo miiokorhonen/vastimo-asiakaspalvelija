@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="fi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vastimo – ylläpito</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font-family:system-ui,sans-serif;background:#eef3fc;color:#0b2a6f}
+header{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;background:#fff;border-bottom:1px solid #cfdcf5}
+header img{width:36px;height:36px;border-radius:8px}header h1{font-size:1.05rem;margin:0;flex:1}
+.wrap{display:grid;grid-template-columns:230px 1fr;gap:1rem;padding:1rem;max-width:1100px;margin:auto}
+@media(max-width:760px){.wrap{grid-template-columns:1fr}}
+.card{background:#fff;border-radius:12px;padding:1rem;margin-bottom:1rem}
+h2{font-size:1.05rem;margin:.2rem 0 .6rem}h3{font-size:.95rem;margin:.8rem 0 .3rem}
+label{display:block;font-size:.82rem;margin:.55rem 0 .2rem;color:#33498a}
+input,textarea,select{width:100%;padding:.5rem;border:1px solid #9bb3e6;border-radius:8px;font:inherit;background:#fff;color:inherit}
+textarea{min-height:5rem;resize:vertical}
+button{background:#1e5bd8;color:#fff;border:0;border-radius:8px;padding:.5rem .9rem;font:inherit;cursor:pointer}
+button.sec{background:#fff;color:#1e5bd8;border:1px solid #1e5bd8}button.warn{background:#fff;color:#a11;border:1px solid #a11}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #0b2a6f;outline-offset:2px}
+.tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.8rem}.tabs button{background:#fff;color:#1e5bd8;border:1px solid #1e5bd8}.tabs button.on{background:#1e5bd8;color:#fff}
+.biz{display:flex;justify-content:space-between;width:100%;text-align:left;margin-bottom:.35rem;background:#fff;color:#0b2a6f;border:1px solid #cfdcf5}.biz.on{border-color:#1e5bd8;background:#e3ecfd}
+.badge{background:#c0392b;color:#fff;border-radius:99px;padding:0 .5rem;font-size:.75rem}
+.item{border:1px solid #cfdcf5;border-radius:10px;padding:.7rem;margin-bottom:.6rem}
+.item .meta{font-size:.78rem;color:#33498a}.tag{display:inline-block;background:#e3ecfd;border-radius:6px;padding:.05rem .45rem;font-size:.78rem;margin-right:.3rem}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.5rem}.row>*{flex:0 0 auto;width:auto}
+.hours{display:grid;grid-template-columns:repeat(7,1fr);gap:.3rem}.hours label{margin:0}
+pre{white-space:pre-wrap;background:#f4f7fd;padding:.5rem;border-radius:8px;font-size:.8rem;overflow-wrap:anywhere}
+#msg{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);background:#0b2a6f;color:#fff;padding:.6rem 1rem;border-radius:10px;display:none;max-width:90vw}
+#msg.err{background:#a11}
+iframe{width:100%;height:520px;border:1px solid #cfdcf5;border-radius:12px}
+</style></head><body>
+<header><img src="logo.png" alt="Vastimon logo"><h1>Vastimo – ylläpito</h1><button class="sec" id="out" hidden>Kirjaudu ulos</button></header>
+<div id="app"></div><div id="msg" role="status"></div>
+<script>
+const $app=document.getElementById("app"),$msg=document.getElementById("msg");
+let ME={rooli:"yritys"},NEWTOKEN=null,draftEntry=null,TOKEN=sessionStorage.getItem("vtoken")||"",cur=null,tab="saapuneet",kb=null,inbox=[],filter="aktiivinen";
+const DAYS=[["ma","Ma"],["ti","Ti"],["ke","Ke"],["to","To"],["pe","Pe"],["la","La"],["su","Su"]];
+function h(tag,props={},...kids){const e=document.createElement(tag);for(const[k,v]of Object.entries(props)){if(k==="class")e.className=v;else if(k.startsWith("on"))e[k]=v;else if(v!==false&&v!=null)e.setAttribute(k,v===true?"":v)}for(const c of kids.flat())if(c!=null)e.append(c.nodeType?c:document.createTextNode(c));return e}
+function toast(t,err){$msg.textContent=t;$msg.className=err?"err":"";$msg.style.display="block";setTimeout(()=>$msg.style.display="none",3500)}
+async function api(path,opt={}){
+  const r=await fetch("/api/admin/"+path,{...opt,headers:{"x-admin-token":TOKEN,"content-type":"application/json"}});
+  if(r.status===401){TOKEN="";sessionStorage.removeItem("vtoken");login();throw new Error("Kirjaudu uudelleen")}
+  if(path.endsWith(".csv")&&r.ok)return r.blob();
+  const j=await r.json();if(!r.ok)throw new Error(j.virhe||"Virhe");return j
+}
+const fmt=s=>s?new Date(s).toLocaleString("fi-FI"):"";
+function login(){
+  document.getElementById("out").hidden=true;
+  const i=h("input",{type:"password",id:"tok",autocomplete:"current-password"});
+  $app.replaceChildren(h("div",{class:"card",style:"max-width:420px;margin:2rem auto"},h("h2",{},"Kirjaudu ylläpitoon"),
+    h("p",{},"Käytä yrityksellesi annettua ylläpitotunnusta. Jos olet unohtanut sen, pyydä uusi Vastimolta (vastimo@me.pazi.ai)."),
+    h("label",{for:"tok"},"Ylläpitotunnus"),i,h("div",{class:"row"},h("button",{onclick:async()=>{TOKEN=i.value.trim();sessionStorage.setItem("vtoken",TOKEN);try{await start()}catch(e){toast(e.message,1)}}},"Kirjaudu"))));
+  i.onkeydown=e=>{if(e.key==="Enter")e.target.nextSibling.firstChild.click()};
+}
+async function start(){
+  ME=await api("me");const list=await api("businesses");document.getElementById("out").hidden=false;
+  if(!cur||!list.find(b=>b.id===cur))cur=list[0]?.id??null;
+  await renderAll(list)
+}
+document.getElementById("out").onclick=()=>{TOKEN="";sessionStorage.removeItem("vtoken");login()};
+async function renderAll(list,keep){
+  list??=await api("businesses");
+  const side=h("div",{},h("div",{class:"card"},h("h2",{},"Yritykset"),
+    ...list.map(b=>h("button",{class:"biz"+(b.id===cur?" on":""),onclick:async()=>{cur=b.id;await renderAll()}},h("span",{},b.nimi),b.uudet?h("span",{class:"badge","aria-label":b.uudet+" uutta"},b.uudet):null)),
+    ...(ME.rooli==="operaattori"?[h("h3",{},"Uusi yritys"),h("label",{for:"nid"},"Tunnus (a–z, 0–9, viiva)"),h("input",{id:"nid",maxlength:60}),h("label",{for:"nn"},"Nimi"),h("input",{id:"nn",maxlength:100}),
+    h("div",{class:"row"},h("button",{onclick:async()=>{try{const id=document.getElementById("nid").value.trim();const r=await api("businesses",{method:"POST",body:JSON.stringify({id,nimi:document.getElementById("nn").value})});NEWTOKEN={id,tunnus:r.tunnus};cur=id;tab="tiedot";toast("Yritys luotu");await renderAll()}catch(e){toast(e.message,1)}}},"Luo"))]:[])));
+  const main=h("div",{});
+  $app.replaceChildren(h("div",{class:"wrap"},side,main));
+  if(!cur){main.append(h("div",{class:"card"},h("p",{},"Luo ensimmäinen yritys vasemmalta.")));return}
+  if(!keep)kb=await api("kb/"+cur);
+  const tabs=[["saapuneet","Saapuneet"],["tiedot","Yrityksen tiedot"],["tietopohja","Tietopohja"],["testi","Testaa ja upota"],["tietosuoja","Tietosuoja ja poisto"]];
+  main.append(h("div",{class:"tabs",role:"tablist"},...tabs.map(([k,l])=>h("button",{class:k===tab?"on":"",role:"tab","aria-selected":k===tab,onclick:async()=>{tab=k;await renderAll()}},l))));
+  if(NEWTOKEN){main.append(h("div",{class:"card"},h("h2",{},"Yrityksen ylläpitotunnus: "+NEWTOKEN.id),h("p",{},"Tämä tunnus näytetään vain nyt. Kopioi se ja toimita yritykselle turvallisesti (ei sähköpostiin tai chattiin selväkielisenä, jos voit välttää)."),h("pre",{},NEWTOKEN.tunnus),h("div",{class:"row"},h("button",{class:"sec",onclick:()=>{NEWTOKEN=null;renderAll(null,true)}},"Olen tallentanut tunnuksen"))))}
+  const body=h("div",{});main.append(body);
+  if(tab==="saapuneet")await viewInbox(body);if(tab==="tiedot")viewProfile(body);if(tab==="tietopohja")viewKb(body);if(tab==="testi")viewTest(body);if(tab==="tietosuoja")viewPrivacy(body);
+}
+async function viewInbox(body){
+  inbox=await api("inbox/"+cur);
+  const fil=h("select",{id:"fil","aria-label":"Suodatin",onchange:e=>{filter=e.target.value;viewInboxList(list)}},...[["aktiivinen","Avoimet (uusi ja hoidossa)"],["uusi","Uudet"],["hoidettu","Hoidetut"],["hylätty","Hylätyt"],["kaikki","Kaikki"]].map(([v,l])=>h("option",{value:v,selected:v===filter},l)));
+  const list=h("div",{});
+  body.append(h("div",{class:"card"},h("h2",{},"Saapuneet"),h("p",{class:"meta"},"Ajanvarauspyynnöt, ihmiselle siirretyt keskustelut ja kysymykset, joihin avustaja ei osannut vastata. Avustaja ei varaa aikoja: vahvista aika asiakkaalle itse ja merkitse pyyntö hoidetuksi."),
+    h("div",{class:"row"},fil,h("button",{class:"sec",onclick:async()=>{try{const b=await api("inbox/"+cur+"/export.csv");const a=h("a",{href:URL.createObjectURL(b),download:cur+"-saapuneet.csv"});a.click()}catch(e){toast(e.message,1)}}},"Lataa CSV")),list));
+  viewInboxList(list)
+}
+function viewInboxList(list){
+  const rows=inbox.filter(r=>filter==="kaikki"||(filter==="aktiivinen"?["uusi","hoidossa"].includes(r.tila):r.tila===filter));
+  list.replaceChildren(...(rows.length?rows.map(itemCard):[h("p",{},"Ei saapuneita tässä näkymässä.")]));
+}
+function itemCard(r){
+  const det=[];
+  if(r.tyyppi==="ajanvarauspyyntö")det.push(h("div",{},h("b",{},r.palvelu),` – toive: ${r.aikatoive}`),h("div",{},`${r.nimi}, ${r.yhteystieto}`));
+  if(r.tyyppi==="yhteydenotto"){det.push(h("div",{},"Syy: "+r.syy),h("div",{},r.yhteystieto?"Yhteystieto: "+r.yhteystieto:"Yhteystietoa ei annettu"));
+    if(r.keskenerainen_ajanvaraus)det.push(h("div",{},"Kesken jäänyt ajanvaraus: "+JSON.stringify(r.keskenerainen_ajanvaraus)));
+    det.push(h("details",{},h("summary",{},"Keskustelu"),h("pre",{},(r.keskustelu||[]).map(x=>x.rooli+": "+x.teksti).join("\n"))))}
+  if(r.tyyppi==="vastaamaton")det.push(h("div",{},"“"+r.kysymys+"”"+(r.kertaa>1?` (${r.kertaa} kertaa)`:"")));
+  const note=h("input",{"aria-label":"Muistiinpano",placeholder:"Muistiinpano",value:r.muistiinpano||""});
+  const set=async t=>{try{await api(`inbox/${cur}/${r.id}`,{method:"PATCH",body:JSON.stringify({tila:t,muistiinpano:note.value})});await renderAll()}catch(e){toast(e.message,1)}};
+  const acts=[h("button",{class:"sec",onclick:()=>set("hoidossa")},"Hoidossa"),h("button",{onclick:()=>set("hoidettu")},"Hoidettu"),h("button",{class:"warn",onclick:()=>set("hylätty")},"Hylkää"),h("button",{class:"warn",onclick:async()=>{if(!confirm("Poistetaanko kirjaus pysyvästi?"))return;try{await api(`inbox/${cur}/${r.id}`,{method:"DELETE"});toast("Kirjaus poistettu");await renderAll()}catch(e){toast(e.message,1)}}},"Poista pysyvästi")];
+  if(r.tyyppi==="vastaamaton")acts.unshift(h("button",{class:"sec",onclick:()=>{tab="tietopohja";draftEntry={otsikko:r.kysymys,kysymys:r.kysymys,vastaamaton:r.id};renderAll()}},"Lisää vastaus tietopohjaan"));
+  return h("div",{class:"item"},h("span",{class:"tag"},r.tyyppi),h("span",{class:"tag"},r.tila),h("span",{class:"meta"},fmt(r.luotu)),...det,h("div",{class:"row"},note),h("div",{class:"row"},...acts));
+}
+function viewProfile(body){
+  const b=kb.business,f={};
+  const inp=(k,l,v,ph="",max=100)=>{f[k]=h("input",{id:"p"+k,value:v??"",placeholder:ph,maxlength:max});return[h("label",{for:"p"+k},l),f[k]]};
+  const hours=h("div",{class:"hours"},...DAYS.map(([d,l])=>{f["h"+d]=h("input",{id:"h"+d,value:b.aukiolo?.[d]||"",placeholder:"9-17","aria-label":l});return h("div",{},h("label",{for:"h"+d},l),f["h"+d])}));
+  const svc=h("textarea",{id:"psv"},(b.palvelut||[]).join("\n")),desc=h("textarea",{id:"pd"},b.kuvaus||""),ho=h("textarea",{id:"pho"},kb.handoff?.ohje||"");
+  const demo=h("input",{type:"checkbox",id:"pdemo",checked:b.demo===true,style:"width:auto"});
+  body.append(h("div",{class:"card"},h("h2",{},"Yrityksen tiedot"),
+    ...inp("nimi","Yrityksen nimi",b.nimi),h("label",{for:"pd"},"Lyhyt kuvaus (näkyy asiakkaalle)"),desc,
+    h("label",{for:"psv"},"Palvelut (yksi per rivi) – ajanvarausapu tarjoaa näitä"),svc,
+    h("h3",{},"Aukioloajat"),h("p",{class:"meta"},"Muodossa 9-17 tai 9.30-16. Tyhjä = suljettu. Avustaja vastaa aukiolokysymyksiin näistä ja tarkistaa ajanvaraustoiveet niitä vasten."),hours,
+    h("h3",{},"Yhteystiedot siirtotilanteisiin"),...inp("puh","Puhelin",b.yhteys?.puhelin,"",40),...inp("email","Sähköposti",b.yhteys?.sahkoposti,"",120),
+    h("label",{for:"pho"},"Sisäinen ohje yhteydenottojen käsittelyyn"),ho,
+    h("label",{},demo," Näytä demosivun oletuksena (julkinen demo)"),
+    h("div",{class:"row"},h("button",{onclick:async()=>{
+      const aukiolo={};for(const[d]of DAYS)aukiolo[d]=f["h"+d].value;
+      const next={...kb,business:{...b,nimi:f.nimi.value,kuvaus:desc.value,palvelut:svc.value.split("\n").map(s=>s.trim()).filter(Boolean),aukiolo,yhteys:{puhelin:f.puh.value,sahkoposti:f.email.value},demo:demo.checked},handoff:{ohje:ho.value}};
+      await saveKb(next)}},"Tallenna"))));
+}
+async function saveKb(next){try{await api("kb/"+cur,{method:"PUT",body:JSON.stringify(next)});toast("Tallennettu – muutos on heti käytössä");await renderAll()}catch(e){toast(e.message,1)}}
+function viewKb(body){
+  const ents=kb.entries.map(e=>({...e}));const draft=draftEntry;draftEntry=null;
+  const cards=ents.map((e,i)=>entryForm(e,i,ents));
+  if(draft){ents.push({id:"",otsikko:draft.otsikko,kysymys:draft.kysymys,avainsanat:[],teksti:""});cards.push(entryForm(ents[ents.length-1],ents.length-1,ents,true))}
+  body.append(h("div",{class:"card"},h("h2",{},"Tietopohja"),h("p",{class:"meta"},"Avustaja vastaa vain näiden tietojen perusteella. Kirjoita vastaus sellaisena kuin asiakas sen lukee; älä lisää arvauksia. Avainsanat (pilkulla erotettuna) auttavat löytämään oikean tiedon."),
+    ...cards,h("div",{class:"row"},h("button",{class:"sec",onclick:()=>{kb.entries=readEntries();draftEntry={otsikko:"",kysymys:""};tab="tietopohja";renderAll(null,true)}},"+ Lisää tieto"),
+    h("button",{onclick:async()=>{await saveKb({...kb,entries:readEntries()});if(draft?.vastaamaton)api(`inbox/${cur}/${draft.vastaamaton}`,{method:"PATCH",body:JSON.stringify({tila:"hoidettu",muistiinpano:"Lisätty tietopohjaan"})}).catch(()=>{})}},"Tallenna tietopohja"))));
+}
+function readEntries(){return[...document.querySelectorAll("[data-entry]")].map(c=>({id:c.dataset.id,otsikko:c.querySelector(".o").value,kysymys:c.querySelector(".k").value,avainsanat:c.querySelector(".a").value.split(","),teksti:c.querySelector(".t").value}))}
+function entryForm(e,i,ents,focus){
+  const c=h("div",{class:"item","data-entry":true,"data-id":e.id||""},
+    h("label",{},"Otsikko"),h("input",{class:"o",value:e.otsikko||"",maxlength:120}),
+    h("label",{},"Vastausteksti"),h("textarea",{class:"t",maxlength:1200},e.teksti||""),
+    h("label",{},"Avainsanat (pilkulla erotettuna)"),h("input",{class:"a",value:(e.avainsanat||[]).join(", ")}),
+    h("label",{},"Esimerkkikysymys (näkyy pikavalintana, valinnainen)"),h("input",{class:"k",value:e.kysymys||"",maxlength:120}),
+    h("div",{class:"row"},h("button",{class:"warn",onclick:()=>{if(confirm("Poistetaanko tieto?")){c.remove()}}},"Poista")));
+  if(focus)setTimeout(()=>c.querySelector(".t").focus(),0);
+  return c;
+}
+function viewPrivacy(body){
+  const days=h("input",{id:"ret",type:"number",min:7,max:365,value:kb.business.sailytysPaivat??90,style:"max-width:8rem"});
+  const q=h("input",{id:"era",placeholder:"Sähköposti, puhelinnumero tai nimi",maxlength:120,"aria-label":"Poistettava hakusana"});
+  const found=h("div",{});
+  const parts=[h("div",{class:"card"},h("h2",{},"Säilytysaika"),h("p",{class:"meta"},"Saapuneet poistetaan automaattisesti, kun kirjausta ei ole päivitetty tässä ajassa. Asiakkaille kerrotaan säilytysajasta tietosuojaselosteessa."),
+    h("div",{class:"row"},h("label",{for:"ret"},"Päivää (7–365)"),days,h("button",{onclick:()=>saveKb({...kb,business:{...kb.business,sailytysPaivat:Number(days.value)}})},"Tallenna")),
+    h("div",{class:"row"},h("button",{class:"sec",onclick:async()=>{try{const r=await api(`inbox/${cur}/purge`,{method:"POST",body:"{}"});toast(`Poistettu ${r.poistettu} vanhentunutta kirjausta`)}catch(e){toast(e.message,1)}}},"Poista vanhentuneet nyt"))),
+    h("div",{class:"card"},h("h2",{},"Poistopyyntö asiakkaalle"),h("p",{class:"meta"},"Hae asiakkaan tiedot hakusanalla (esim. sähköposti). Näet ensin osumat ja voit sitten poistaa kaikki osumat pysyvästi."),
+    h("div",{class:"row"},q,h("button",{class:"sec",onclick:async()=>{try{const r=await api(`inbox/${cur}?haku=`+encodeURIComponent(q.value.trim()));if(q.value.trim().length<3)throw new Error("Hakusanan pitää olla vähintään 3 merkkiä");found.replaceChildren(h("p",{},`${r.length} osumaa.`),...r.map(itemCard))}catch(e){toast(e.message,1)}}},"Hae"),
+      h("button",{class:"warn",onclick:async()=>{try{if(!confirm("Poistetaanko kaikki hakusanaa vastaavat kirjaukset pysyvästi?"))return;const r=await api(`inbox/${cur}/erase`,{method:"POST",body:JSON.stringify({haku:q.value.trim()})});found.replaceChildren(h("p",{},`Poistettu ${r.poistettu} kirjausta.`))}catch(e){toast(e.message,1)}}},"Poista osumat")),found),
+    h("p",{class:"meta"},"Julkinen tietosuojaseloste: ",h("a",{href:"/tietosuoja",target:"_blank",rel:"noopener"},"/tietosuoja"))];
+  if(ME.rooli==="operaattori")parts.push(h("div",{class:"card"},h("h2",{},"Operaattorin toiminnot"),h("div",{class:"row"},
+    h("button",{class:"sec",onclick:async()=>{if(!confirm("Luodaanko uusi tunnus? Vanha lakkaa toimimasta heti."))return;try{const r=await api(`businesses/${cur}/token`,{method:"POST",body:"{}"});NEWTOKEN={id:cur,tunnus:r.tunnus};await renderAll()}catch(e){toast(e.message,1)}}},"Luo yritykselle uusi ylläpitotunnus"),
+    h("button",{class:"warn",onclick:async()=>{if(prompt("Poistaa yrityksen, tietopohjan, saapuneet ja tunnuksen pysyvästi. Kirjoita yrityksen tunnus "+cur+" vahvistukseksi:")!==cur)return;try{await api(`businesses/${cur}`,{method:"DELETE"});cur=null;toast("Yritys poistettu");await start()}catch(e){toast(e.message,1)}}},"Poista yritys ja kaikki sen tiedot"))));
+  body.append(...parts);
+}
+function viewTest(body){
+  const origin=location.origin;
+  body.append(h("div",{class:"card"},h("h2",{},"Testaa avustajaa"),h("p",{class:"meta"},"Tämä on asiakkaan näkymä. Testikeskustelut näkyvät Saapuneet-välilehdellä."),
+    h("iframe",{src:`/?b=${encodeURIComponent(cur)}`,title:"Asiakaspalvelijan esikatselu"})),
+    h("div",{class:"card"},h("h2",{},"Upota yrityksen sivulle"),h("p",{class:"meta"},"Lisää tämä rivi sivun loppuun. Toimii sitten, kun palvelu on julkisesti käytössä osoitteessa, josta koodi haetaan (nyt: "+origin+")."),
+      h("pre",{},`<script src="${origin}/widget.js" data-business="${cur}" defer><\/script>`)));
+}
+(async()=>{if(!TOKEN)return login();try{await start()}catch(e){login()}})();
+</script></body></html>
